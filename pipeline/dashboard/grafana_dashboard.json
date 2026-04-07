@@ -1,0 +1,221 @@
+{
+  "dashboard": {
+    "title": "Ethereum Phishing Detection",
+    "description": "GNN-based phishing detection monitoring dashboard",
+    "tags": ["ethereum", "phishing", "gnn"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Total Phishing Detected",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "rawSql": "SELECT COUNT(*) FROM detection_results WHERE predicted_label = 1",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 100 },
+                { "color": "red", "value": 500 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Alerts (Last 24h)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "rawSql": "SELECT COUNT(*) FROM detection_results WHERE predicted_label = 1 AND detected_at >= NOW() - INTERVAL '24 hours'",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "fixedColor": "red", "mode": "fixed" }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Pending Reviews",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "rawSql": "SELECT COUNT(*) FROM phishing_alerts WHERE reviewed = FALSE",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "fixedColor": "orange", "mode": "fixed" }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Model Performance",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          {
+            "rawSql": "SELECT test_f1 AS \"F1 Score\" FROM model_registry WHERE is_active = TRUE LIMIT 1",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "color": { "mode": "thresholds" },
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 0.7 },
+                { "color": "green", "value": 0.85 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Daily Detection Count",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "rawSql": "SELECT DATE(detected_at) AS time, COUNT(*) FILTER (WHERE predicted_label = 1) AS phishing, COUNT(*) FILTER (WHERE predicted_label = 0) AS legitimate FROM detection_results WHERE detected_at >= NOW() - INTERVAL '30 days' GROUP BY DATE(detected_at) ORDER BY time",
+            "format": "time_series"
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "phishing" },
+              "properties": [{ "id": "color", "value": { "fixedColor": "red" } }]
+            },
+            {
+              "matcher": { "id": "byName", "options": "legitimate" },
+              "properties": [{ "id": "color", "value": { "fixedColor": "green" } }]
+            }
+          ]
+        }
+      },
+      {
+        "id": 6,
+        "title": "Phishing Score Distribution",
+        "type": "histogram",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "targets": [
+          {
+            "rawSql": "SELECT phishing_score FROM detection_results WHERE detected_at >= NOW() - INTERVAL '7 days' ORDER BY phishing_score",
+            "format": "table"
+          }
+        ],
+        "options": {
+          "bucketSize": 0.05,
+          "fillOpacity": 80
+        }
+      },
+      {
+        "id": 7,
+        "title": "Top Risky Addresses",
+        "type": "table",
+        "gridPos": { "h": 10, "w": 12, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "rawSql": "SELECT address, MAX(phishing_score) AS max_score, COUNT(*) AS detections, MAX(detected_at) AS last_seen FROM detection_results WHERE predicted_label = 1 GROUP BY address ORDER BY max_score DESC LIMIT 20",
+            "format": "table"
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "max_score" },
+              "properties": [
+                { "id": "custom.displayMode", "value": "color-background" },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "steps": [
+                      { "color": "yellow", "value": 0.7 },
+                      { "color": "red", "value": 0.9 }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 8,
+        "title": "Alert Review Queue",
+        "type": "table",
+        "gridPos": { "h": 10, "w": 12, "x": 12, "y": 12 },
+        "targets": [
+          {
+            "rawSql": "SELECT id, address, phishing_score, tx_hash, from_address, to_address, tx_value, alerted_at FROM phishing_alerts WHERE reviewed = FALSE ORDER BY phishing_score DESC LIMIT 20",
+            "format": "table"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Batch vs Streaming Detections",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 22 },
+        "targets": [
+          {
+            "rawSql": "SELECT source, COUNT(*) AS count FROM detection_results GROUP BY source",
+            "format": "table"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Streaming Latency (Alerts per Hour)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 16, "x": 8, "y": 22 },
+        "targets": [
+          {
+            "rawSql": "SELECT date_trunc('hour', detected_at) AS time, COUNT(*) AS alerts FROM detection_results WHERE source = 'streaming' AND detected_at >= NOW() - INTERVAL '7 days' GROUP BY date_trunc('hour', detected_at) ORDER BY time",
+            "format": "time_series"
+          }
+        ]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "timeRange",
+          "type": "interval",
+          "options": [
+            { "text": "Last 24h", "value": "24h" },
+            { "text": "Last 7d", "value": "7d" },
+            { "text": "Last 30d", "value": "30d" }
+          ]
+        }
+      ]
+    }
+  },
+  "datasource": {
+    "type": "postgres",
+    "name": "EthPhishingDB",
+    "database": "eth_phishing",
+    "user": "grafana_reader",
+    "sslmode": "require"
+  }
+}

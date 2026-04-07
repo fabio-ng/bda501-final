@@ -1,0 +1,277 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 820" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#e67e22"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2980b9"/>
+    </marker>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="112%">
+      <feDropShadow dx="1" dy="2" stdDeviation="2.5" flood-opacity="0.12"/>
+    </filter>
+    <!-- Layer background gradient fills -->
+    <linearGradient id="srcGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e8f4f8"/>
+      <stop offset="100%" stop-color="#d5eef6"/>
+    </linearGradient>
+    <linearGradient id="ingGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fef5e7"/>
+      <stop offset="100%" stop-color="#fdebd0"/>
+    </linearGradient>
+    <linearGradient id="stoGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eafaf1"/>
+      <stop offset="100%" stop-color="#d5f5e3"/>
+    </linearGradient>
+    <linearGradient id="proGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f4ecf7"/>
+      <stop offset="100%" stop-color="#e8daef"/>
+    </linearGradient>
+    <linearGradient id="outGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fdedec"/>
+      <stop offset="100%" stop-color="#fadbd8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="820" rx="12" fill="#fafbfc"/>
+
+  <!-- Title -->
+  <text x="600" y="38" text-anchor="middle" font-size="20" font-weight="700" fill="#2c3e50">GNN-Based Ethereum Phishing Detection — System Architecture</text>
+  <text x="600" y="58" text-anchor="middle" font-size="12" fill="#7f8c8d">Hybrid Batch + Streaming Pipeline</text>
+
+  <!-- ═══════════ LAYER BACKGROUNDS ═══════════ -->
+
+  <!-- Data Sources layer -->
+  <rect x="30" y="75" width="1140" height="110" rx="10" fill="url(#srcGrad)" stroke="#2980b9" stroke-width="1.2" opacity="0.6"/>
+  <text x="48" y="97" font-size="13" font-weight="700" fill="#2471a3">DATA SOURCES</text>
+
+  <!-- Ingestion layer -->
+  <rect x="30" y="200" width="1140" height="100" rx="10" fill="url(#ingGrad)" stroke="#e67e22" stroke-width="1.2" opacity="0.6"/>
+  <text x="48" y="222" font-size="13" font-weight="700" fill="#ca6f1e">INGESTION LAYER</text>
+
+  <!-- Storage layer -->
+  <rect x="30" y="315" width="1140" height="100" rx="10" fill="url(#stoGrad)" stroke="#27ae60" stroke-width="1.2" opacity="0.6"/>
+  <text x="48" y="337" font-size="13" font-weight="700" fill="#1e8449">STORAGE LAYER</text>
+
+  <!-- Processing layer -->
+  <rect x="30" y="430" width="1140" height="180" rx="10" fill="url(#proGrad)" stroke="#8e44ad" stroke-width="1.2" opacity="0.6"/>
+  <text x="48" y="452" font-size="13" font-weight="700" fill="#7d3c98">PROCESSING LAYER</text>
+
+  <!-- Output layer -->
+  <rect x="30" y="625" width="1140" height="100" rx="10" fill="url(#outGrad)" stroke="#c0392b" stroke-width="1.2" opacity="0.6"/>
+  <text x="48" y="647" font-size="13" font-weight="700" fill="#a93226">OUTPUT LAYER</text>
+
+  <!-- ═══════════ DATA SOURCE BOXES ═══════════ -->
+
+  <!-- Ethereum Blockchain -->
+  <rect x="80" y="108" width="200" height="60" rx="8" fill="#2980b9" filter="url(#shadow)"/>
+  <text x="180" y="134" text-anchor="middle" font-size="13" font-weight="600" fill="white">Ethereum Blockchain</text>
+  <text x="180" y="152" text-anchor="middle" font-size="10.5" fill="#d6eaf8">Nodes / WebSocket</text>
+
+  <!-- Google BigQuery -->
+  <rect x="340" y="108" width="200" height="60" rx="8" fill="#2980b9" filter="url(#shadow)"/>
+  <text x="440" y="134" text-anchor="middle" font-size="13" font-weight="600" fill="white">Google BigQuery</text>
+  <text x="440" y="152" text-anchor="middle" font-size="10.5" fill="#d6eaf8">Public Ethereum Dataset</text>
+
+  <!-- Etherscan API -->
+  <rect x="600" y="108" width="200" height="60" rx="8" fill="#2980b9" filter="url(#shadow)"/>
+  <text x="700" y="134" text-anchor="middle" font-size="13" font-weight="600" fill="white">Etherscan API</text>
+  <text x="700" y="152" text-anchor="middle" font-size="10.5" fill="#d6eaf8">Transactions + Labels</text>
+
+  <!-- Phishing Label DB -->
+  <rect x="860" y="108" width="220" height="60" rx="8" fill="#2980b9" filter="url(#shadow)"/>
+  <text x="970" y="134" text-anchor="middle" font-size="13" font-weight="600" fill="white">Phishing Label Databases</text>
+  <text x="970" y="152" text-anchor="middle" font-size="10.5" fill="#d6eaf8">XBlock-ETH / Blacklists</text>
+
+  <!-- ═══════════ INGESTION BOXES ═══════════ -->
+
+  <!-- Kafka -->
+  <rect x="120" y="228" width="220" height="55" rx="8" fill="#e67e22" filter="url(#shadow)"/>
+  <text x="230" y="252" text-anchor="middle" font-size="13" font-weight="600" fill="white">Apache Kafka</text>
+  <text x="230" y="268" text-anchor="middle" font-size="10.5" fill="#fdebd0">Streaming Ingestion</text>
+
+  <!-- Spark Batch ETL -->
+  <rect x="420" y="228" width="220" height="55" rx="8" fill="#e67e22" filter="url(#shadow)"/>
+  <text x="530" y="252" text-anchor="middle" font-size="13" font-weight="600" fill="white">Apache Spark</text>
+  <text x="530" y="268" text-anchor="middle" font-size="10.5" fill="#fdebd0">Batch ETL (Scheduled)</text>
+
+  <!-- Label Ingestion -->
+  <rect x="740" y="228" width="220" height="55" rx="8" fill="#e67e22" filter="url(#shadow)"/>
+  <text x="850" y="252" text-anchor="middle" font-size="13" font-weight="600" fill="white">REST API Ingestion</text>
+  <text x="850" y="268" text-anchor="middle" font-size="10.5" fill="#fdebd0">Label Pull (Periodic)</text>
+
+  <!-- ═══════════ STORAGE BOXES ═══════════ -->
+
+  <!-- GCS + Delta Lake -->
+  <rect x="80" y="340" width="250" height="55" rx="8" fill="#27ae60" filter="url(#shadow)"/>
+  <text x="205" y="363" text-anchor="middle" font-size="13" font-weight="600" fill="white">GCS + Delta Lake</text>
+  <text x="205" y="380" text-anchor="middle" font-size="10.5" fill="#d5f5e3">Parquet / Partitioned by Block</text>
+
+  <!-- Node & Edge Tables -->
+  <rect x="390" y="340" width="250" height="55" rx="8" fill="#27ae60" filter="url(#shadow)"/>
+  <text x="515" y="363" text-anchor="middle" font-size="13" font-weight="600" fill="white">Node &amp; Edge Feature Tables</text>
+  <text x="515" y="380" text-anchor="middle" font-size="10.5" fill="#d5f5e3">Delta Lake (Versioned)</text>
+
+  <!-- Cloud SQL -->
+  <rect x="700" y="340" width="200" height="55" rx="8" fill="#27ae60" filter="url(#shadow)"/>
+  <text x="800" y="363" text-anchor="middle" font-size="13" font-weight="600" fill="white">Cloud SQL (PostgreSQL)</text>
+  <text x="800" y="380" text-anchor="middle" font-size="10.5" fill="#d5f5e3">Labels + Results</text>
+
+  <!-- MLflow Model Registry -->
+  <rect x="960" y="340" width="190" height="55" rx="8" fill="#27ae60" filter="url(#shadow)"/>
+  <text x="1055" y="363" text-anchor="middle" font-size="13" font-weight="600" fill="white">MLflow Registry</text>
+  <text x="1055" y="380" text-anchor="middle" font-size="10.5" fill="#d5f5e3">Model Artifacts (GCS)</text>
+
+  <!-- ═══════════ PROCESSING BOXES ═══════════ -->
+
+  <!-- Stage 1: Preprocessing -->
+  <rect x="65" y="465" width="230" height="65" rx="8" fill="#8e44ad" filter="url(#shadow)"/>
+  <text x="180" y="487" text-anchor="middle" font-size="11" font-weight="600" fill="#e8daef">STAGE 1</text>
+  <text x="180" y="504" text-anchor="middle" font-size="13" font-weight="600" fill="white">Data Preprocessing</text>
+  <text x="180" y="520" text-anchor="middle" font-size="10.5" fill="#d7bde2">PySpark on Dataproc</text>
+
+  <!-- Stage 2: Graph Construction -->
+  <rect x="325" y="465" width="230" height="65" rx="8" fill="#8e44ad" filter="url(#shadow)"/>
+  <text x="440" y="487" text-anchor="middle" font-size="11" font-weight="600" fill="#e8daef">STAGE 2</text>
+  <text x="440" y="504" text-anchor="middle" font-size="13" font-weight="600" fill="white">Graph Construction</text>
+  <text x="440" y="520" text-anchor="middle" font-size="10.5" fill="#d7bde2">Feature Engineering (Spark)</text>
+
+  <!-- Stage 3: GNN Training -->
+  <rect x="585" y="465" width="230" height="65" rx="8" fill="#8e44ad" filter="url(#shadow)"/>
+  <text x="700" y="487" text-anchor="middle" font-size="11" font-weight="600" fill="#e8daef">STAGE 3</text>
+  <text x="700" y="504" text-anchor="middle" font-size="13" font-weight="600" fill="white">GNN Training</text>
+  <text x="700" y="520" text-anchor="middle" font-size="10.5" fill="#d7bde2">DGL + PyTorch (GPU)</text>
+
+  <!-- Stage 4: Real-time Inference -->
+  <rect x="845" y="465" width="250" height="65" rx="8" fill="#8e44ad" filter="url(#shadow)"/>
+  <text x="970" y="487" text-anchor="middle" font-size="11" font-weight="600" fill="#e8daef">STAGE 4</text>
+  <text x="970" y="504" text-anchor="middle" font-size="13" font-weight="600" fill="white">Real-Time Inference</text>
+  <text x="970" y="520" text-anchor="middle" font-size="10.5" fill="#d7bde2">Spark Streaming + Model</text>
+
+  <!-- GraphSAGE model callout -->
+  <rect x="555" y="548" width="290" height="50" rx="25" fill="white" stroke="#8e44ad" stroke-width="1.5" stroke-dasharray="5,3" filter="url(#shadow)"/>
+  <text x="700" y="569" text-anchor="middle" font-size="12" font-weight="600" fill="#7d3c98">GraphSAGE (2-layer, dim=128)</text>
+  <text x="700" y="585" text-anchor="middle" font-size="10" fill="#8e44ad">Mini-batch Neighborhood Sampling</text>
+
+  <!-- ═══════════ OUTPUT BOXES ═══════════ -->
+
+  <!-- Dashboard -->
+  <rect x="100" y="652" width="220" height="55" rx="8" fill="#c0392b" filter="url(#shadow)"/>
+  <text x="210" y="675" text-anchor="middle" font-size="13" font-weight="600" fill="white">Grafana Dashboard</text>
+  <text x="210" y="692" text-anchor="middle" font-size="10.5" fill="#fadbd8">Risk Scores / Graph Viz</text>
+
+  <!-- Alert API -->
+  <rect x="390" y="652" width="220" height="55" rx="8" fill="#c0392b" filter="url(#shadow)"/>
+  <text x="500" y="675" text-anchor="middle" font-size="13" font-weight="600" fill="white">Alert System</text>
+  <text x="500" y="692" text-anchor="middle" font-size="10.5" fill="#fadbd8">Kafka Topic + REST API</text>
+
+  <!-- PostgreSQL Results -->
+  <rect x="680" y="652" width="220" height="55" rx="8" fill="#c0392b" filter="url(#shadow)"/>
+  <text x="790" y="675" text-anchor="middle" font-size="13" font-weight="600" fill="white">PostgreSQL</text>
+  <text x="790" y="692" text-anchor="middle" font-size="10.5" fill="#fadbd8">Detection Results / Audit</text>
+
+  <!-- Downstream consumers -->
+  <rect x="960" y="652" width="190" height="55" rx="8" fill="#c0392b" filter="url(#shadow)"/>
+  <text x="1055" y="675" text-anchor="middle" font-size="13" font-weight="600" fill="white">Downstream</text>
+  <text x="1055" y="692" text-anchor="middle" font-size="10.5" fill="#fadbd8">Wallets / Exchanges</text>
+
+  <!-- ═══════════ ARROWS — Sources → Ingestion ═══════════ -->
+
+  <!-- Ethereum → Kafka (streaming) -->
+  <line x1="180" y1="168" x2="200" y2="228" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- BigQuery → Spark batch -->
+  <line x1="440" y1="168" x2="490" y2="228" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Etherscan → Kafka -->
+  <line x1="670" y1="168" x2="290" y2="228" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="6,3"/>
+  <!-- Etherscan → Label ingestion -->
+  <line x1="730" y1="168" x2="810" y2="228" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Phishing DB → Label ingestion -->
+  <line x1="970" y1="168" x2="890" y2="228" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ═══════════ ARROWS — Ingestion → Storage ═══════════ -->
+
+  <!-- Kafka → GCS -->
+  <line x1="230" y1="283" x2="205" y2="340" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Spark batch → GCS -->
+  <line x1="490" y1="283" x2="260" y2="340" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Spark batch → Node/Edge tables -->
+  <line x1="530" y1="283" x2="515" y2="340" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Label ingestion → Cloud SQL -->
+  <line x1="850" y1="283" x2="800" y2="340" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ═══════════ ARROWS — Storage → Processing ═══════════ -->
+
+  <!-- GCS → Stage 1 -->
+  <line x1="205" y1="395" x2="180" y2="465" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Cloud SQL → Stage 1 (labels) -->
+  <line x1="750" y1="395" x2="260" y2="465" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="6,3"/>
+
+  <!-- ═══════════ ARROWS — Processing internal ═══════════ -->
+
+  <!-- Stage 1 → Stage 2 -->
+  <line x1="295" y1="497" x2="325" y2="497" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Stage 2 → Stage 3 -->
+  <line x1="555" y1="497" x2="585" y2="497" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Stage 3 → MLflow (model save) -->
+  <line x1="760" y1="465" x2="1020" y2="395" stroke="#27ae60" stroke-width="1.3" marker-end="url(#arrow)" stroke-dasharray="6,3"/>
+  <!-- MLflow → Stage 4 (model load) -->
+  <line x1="1055" y1="395" x2="1010" y2="465" stroke="#27ae60" stroke-width="1.3" marker-end="url(#arrow)" stroke-dasharray="6,3"/>
+  <!-- Stage 2 → Node/Edge feature tables (write) -->
+  <line x1="440" y1="465" x2="480" y2="395" stroke="#27ae60" stroke-width="1.3" marker-end="url(#arrow)" stroke-dasharray="6,3"/>
+  <!-- Node/Edge tables → Stage 4 (read features) -->
+  <line x1="560" y1="395" x2="920" y2="465" stroke="#27ae60" stroke-width="1.3" marker-end="url(#arrow)" stroke-dasharray="6,3"/>
+  <!-- Kafka → Stage 4 (streaming) -->
+  <line x1="230" y1="270" x2="230" y2="290" stroke="none"/>
+  <path d="M 170 283 Q 60 420 880 497" stroke="#e67e22" stroke-width="1.5" fill="none" marker-end="url(#arrow-orange)" stroke-dasharray="8,4"/>
+
+  <!-- ═══════════ ARROWS — Processing → Output ═══════════ -->
+
+  <!-- Stage 3 (batch inference) → PostgreSQL -->
+  <line x1="700" y1="530" x2="760" y2="652" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Stage 4 → Alert System -->
+  <line x1="940" y1="530" x2="540" y2="652" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- Stage 4 → PostgreSQL -->
+  <line x1="970" y1="530" x2="800" y2="652" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- PostgreSQL → Dashboard -->
+  <line x1="720" y1="680" x2="320" y2="680" stroke="#555" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <!-- Alert → Downstream -->
+  <line x1="610" y1="680" x2="680" y2="680" stroke="none"/>
+  <line x1="500" y1="707" x2="1020" y2="707" stroke="#555" stroke-width="1.2" marker-end="url(#arrow)" stroke-dasharray="5,3"/>
+
+  <!-- ═══════════ LEGEND ═══════════ -->
+
+  <rect x="30" y="745" width="1140" height="60" rx="8" fill="white" stroke="#ddd" stroke-width="1"/>
+  <text x="55" y="770" font-size="12" font-weight="700" fill="#2c3e50">Legend:</text>
+
+  <!-- Batch flow -->
+  <line x1="120" y1="766" x2="170" y2="766" stroke="#555" stroke-width="2"/>
+  <text x="178" y="770" font-size="11" fill="#555">Batch flow</text>
+
+  <!-- Streaming flow -->
+  <line x1="280" y1="766" x2="330" y2="766" stroke="#e67e22" stroke-width="2" stroke-dasharray="8,4"/>
+  <text x="338" y="770" font-size="11" fill="#555">Streaming flow</text>
+
+  <!-- Feedback / read-back -->
+  <line x1="470" y1="766" x2="520" y2="766" stroke="#27ae60" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="528" y="770" font-size="11" fill="#555">Read-back / model sync</text>
+
+  <!-- Layer colors -->
+  <rect x="700" y="757" width="14" height="14" rx="3" fill="#2980b9"/>
+  <text x="720" y="769" font-size="11" fill="#555">Sources</text>
+  <rect x="780" y="757" width="14" height="14" rx="3" fill="#e67e22"/>
+  <text x="800" y="769" font-size="11" fill="#555">Ingestion</text>
+  <rect x="862" y="757" width="14" height="14" rx="3" fill="#27ae60"/>
+  <text x="882" y="769" font-size="11" fill="#555">Storage</text>
+  <rect x="940" y="757" width="14" height="14" rx="3" fill="#8e44ad"/>
+  <text x="960" y="769" font-size="11" fill="#555">Processing</text>
+  <rect x="1032" y="757" width="14" height="14" rx="3" fill="#c0392b"/>
+  <text x="1052" y="769" font-size="11" fill="#555">Output</text>
+
+  <!-- Layer label: Batch vs Streaming annotation -->
+  <text x="55" y="793" font-size="10" fill="#7f8c8d">Batch: BigQuery → Spark ETL → Delta Lake → GNN Training → Dashboard  |  Streaming: Kafka → Spark Streaming → GNN Inference → Alerts</text>
+
+</svg>

@@ -1,0 +1,111 @@
+# ============================================================
+# Docker Compose: Local development stack for Phases 4-5
+#
+# Services:
+#   - PostgreSQL (detection results + labels)
+#   - Kafka + Zookeeper (transaction streaming)
+#   - Grafana (dashboard)
+#   - FastAPI (alert API)
+#
+# Usage:
+#   docker-compose up -d
+#   docker-compose logs -f api
+# ============================================================
+
+version: "3.8"
+
+services:
+  # ── PostgreSQL ──────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: eth-phishing-db
+    environment:
+      POSTGRES_DB: eth_phishing
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Zookeeper (Kafka dependency) ────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: eth-phishing-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  # ── Kafka ───────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: eth-phishing-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # ── Grafana ─────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: eth-phishing-grafana
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-clock-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./dashboard/provisioning:/etc/grafana/provisioning
+    restart: unless-stopped
+
+  # ── FastAPI Alert Service ───────────────────
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: eth-phishing-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: eth_phishing
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      MODEL_LOCAL_PATH: /app/models/graphsage_phishing.pt
+      GRAPH_DATA_DIR: /app/data
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  grafana_data:
