@@ -1,0 +1,28 @@
+# ============================================================
+# Grafana PostgreSQL Datasource Configuration
+# ============================================================
+
+apiVersion: 1
+
+datasources:
+  - name: PostgreSQL
+    type: postgres
+    access: proxy
+    isDefault: false
+    url: ${CLOUD_SQL_HOST}:5432
+    database: ${POSTGRES_DB}
+    user: ${POSTGRES_USER}
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
+    editable: true
+    jsonData:
+      sslmode: prefer
+      postgresVersion: 130
+      timescaledb: false
+
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

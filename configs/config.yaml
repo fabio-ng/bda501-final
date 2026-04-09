@@ -1,0 +1,200 @@
+# ============================================================
+# Ethereum Phishing Detection Platform - Configuration
+# ============================================================
+
+app:
+  name: "Ethereum Phishing Detection Platform"
+  version: "1.0.0"
+  environment: "local"  # local | staging | production
+  debug: false
+
+gcp:
+  project_id: "${GCP_PROJECT_ID}"
+  credentials_file: "/app/credentials/gcp-service-account.json"
+
+storage:
+  type: "gcs"  # gcs | local
+  gcs:
+    buckets:
+      raw: "${GCS_BUCKET_RAW}"
+      processed: "${GCS_BUCKET_PROCESSED}"
+      models: "${GCS_BUCKET_MODELS}"
+    model_prefix: "models/"
+    mlflow_prefix: "mlflow-artifacts/"
+
+database:
+  type: "cloud_sql"  # cloud_sql | local_postgres
+  cloud_sql:
+    host: "${CLOUD_SQL_HOST}"
+    port: 5432
+    database: "${POSTGRES_DB}"
+    user: "${POSTGRES_USER}"
+    pool_size: 10
+    max_overflow: 20
+    ssl_mode: "prefer"
+    connect_timeout: 10
+
+model:
+  artifacts_dir: "/app/model_artifacts"
+  current_dir: "current"
+  metadata_file: "metadata.json"
+  model_file: "model.pt"
+  default_threshold: 0.7
+  refresh_interval_hours: 24
+  gcs_sync: true  # sync model artifacts from GCS at startup
+  confidence_bands:
+    high: 0.8
+    medium: 0.5
+    low: 0.0
+  auto_alert_threshold: 0.85
+
+inference:
+  batch_size: 256
+  max_batch_addresses: 100
+  timeout_seconds: 30
+  mode: "auto"  # auto | mock | real
+  cache_predictions: false
+
+kafka:
+  bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+  security_protocol: "PLAINTEXT"
+  topics:
+    transactions: "eth.transactions"
+    alerts: "eth.alerts"
+    dead_letter: "eth.dead-letter"
+  consumer:
+    group_id: "phishing-detector"
+    auto_offset_reset: "latest"
+    max_poll_records: 500
+    session_timeout_ms: 30000
+  producer:
+    acks: "all"
+    retries: 3
+    compression_type: "snappy"
+
+streaming:
+  enabled: false  # Enable in Phase 7
+  mock_producer:
+    enabled: false
+    rate_per_second: 5
+    phishing_ratio: 0.05
+  consumer:
+    processing_interval_seconds: 10
+    retry:
+      max_retries: 3
+      initial_delay_ms: 100
+      max_delay_ms: 5000
+      backoff_multiplier: 2.0
+
+logging:
+  level: "INFO"
+  format: "json"  # json | text
+  correlation_id_header: "X-Correlation-ID"
+  structured_logging: true
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  timeout: 30
+  rate_limit:
+    enabled: false  # Enable in Phase 8
+    default: "100/minute"
+    predict: "100/minute"
+    batch: "20/minute"
+  cors:
+    enabled: true
+    origins:
+      - "http://localhost:8501"
+      - "http://localhost:3000"
+      - "http://localhost:8000"
+  metrics:
+    enabled: true
+    endpoint: "/metrics"
+
+mlflow:
+  tracking_uri: "${MLFLOW_TRACKING_URI}"
+  registry_uri: "http://mlflow:5000"
+  experiment_name: "eth-phishing-detection"
+  run_name_prefix: "phase4"
+
+observability:
+  prometheus:
+    enabled: false  # Enable in Phase 7+
+    port: 8001
+  jaeger:
+    enabled: false
+  structured_logs: true
+
+# ============================================================
+# Data Sources Configuration
+# ============================================================
+data_sources:
+  bigquery:
+    project: "${GCP_PROJECT_ID}"
+    dataset: "bigquery-public-data.crypto_ethereum"
+    transactions_table: "transactions"
+    token_transfers_table: "token_transfers"
+    default_limit: 1000000
+    default_lookback_days: 30
+    export_format: "PARQUET"
+
+  xblock_eth:
+    kaggle_dataset: "xblock/ethereum-phishing-transaction-network"
+    local_data_dir: "data/raw/xblock"
+    known_files:
+      - "MulDiGraph_node.csv"
+      - "MulDiGraph_edge.csv"
+      - "transaction_list.csv"
+      - "phishing_addrs.txt"
+
+# ============================================================
+# ETL Pipeline Configuration
+# ============================================================
+etl:
+  raw_prefix: "transactions"
+  xblock_prefix: "xblock"
+  bigquery_prefix: "bigquery"
+  processed_prefix: "features"
+  job_log_file: "_job_log.json"
+  stats_file: "_stats.json"
+  parquet_compression: "snappy"
+  partition_by: "block_date"
+
+# ============================================================
+# Feature Engineering Configuration
+# ============================================================
+feature_engineering:
+  feature_names:
+    - in_degree
+    - out_degree
+    - total_eth_received
+    - total_eth_sent
+    - avg_tx_value_in
+    - avg_tx_value_out
+    - max_tx_value
+    - unique_in_neighbors
+    - unique_out_neighbors
+    - account_lifetime
+    - failed_tx_ratio
+    - avg_gas_used
+  normalization: "standard_scaler"
+  unknown_label: -1
+  phishing_label: 1
+  legit_label: 0
+
+# ============================================================
+# Legacy Feature Engineering (for reference)
+# ============================================================
+features:
+  address:
+    in_degree: true
+    out_degree: true
+    balance_eth: false
+    first_tx_time: true
+    last_tx_time: true
+    tx_count: true
+    age_days: true
+  temporal:
+    tx_frequency: true
+    burst_intensity: false

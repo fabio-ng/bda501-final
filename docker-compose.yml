@@ -1,0 +1,267 @@
+# ============================================================
+# Ethereum Phishing Detection Platform — docker-compose.yml
+# Runtime: Rancher Desktop (local compute) + GCP (storage)
+#
+# NOTE: PostgreSQL is on Cloud SQL (GCP) — no local postgres
+#       Object storage is on GCS — no local MinIO/S3
+#
+# Profiles:
+#   (default)     → api + dashboard + kafka + zookeeper + mlflow
+#   --profile minimal → api + dashboard only
+#   --profile full    → adds spark-master + spark-worker
+#   --profile monitoring → adds prometheus + grafana
+#
+# Usage:
+#   docker-compose up -d                        # MVP stack
+#   docker-compose --profile minimal up -d      # Minimal
+#   docker-compose --profile full --profile monitoring up -d  # Full
+# ============================================================
+
+version: "3.8"
+
+x-common-env: &common-env
+  TZ: UTC
+  GOOGLE_APPLICATION_CREDENTIALS: /app/credentials/gcp-service-account.json
+
+x-gcp-env: &gcp-env
+  GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+  GCS_BUCKET_RAW: ${GCS_BUCKET_RAW:-eth-phishing-raw}
+  GCS_BUCKET_PROCESSED: ${GCS_BUCKET_PROCESSED:-eth-phishing-processed}
+  GCS_BUCKET_MODELS: ${GCS_BUCKET_MODELS:-eth-phishing-models}
+  CLOUD_SQL_CONNECTION_NAME: ${CLOUD_SQL_CONNECTION_NAME}
+  DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@${CLOUD_SQL_HOST}:5432/${POSTGRES_DB:-eth_phishing}
+
+services:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # NOTE: DATA LAYER IS ON GCP
+  #   Cloud SQL PostgreSQL → ${CLOUD_SQL_HOST}:5432
+  #   GCS buckets → gs://${GCS_BUCKET_RAW}/, gs://${GCS_BUCKET_PROCESSED}/, gs://${GCS_BUCKET_MODELS}/
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  # ── MESSAGING ──────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: ethphish-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: ethphish-kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    networks:
+      - backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ── ML TRACKING ────────────────────────────
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.14.0
+    container_name: ethphish-mlflow
+    environment:
+      <<: *common-env
+      MLFLOW_BACKEND_STORE_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@${CLOUD_SQL_HOST}:5432/mlflow
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: gs://${GCS_BUCKET_MODELS:-eth-phishing-models}/mlflow-artifacts/
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@${CLOUD_SQL_HOST}:5432/mlflow
+      --default-artifact-root gs://${GCS_BUCKET_MODELS:-eth-phishing-models}/mlflow-artifacts/
+    ports:
+      - "${MLFLOW_PORT:-5000}:5000"
+    volumes:
+      - ./credentials:/app/credentials:ro
+    networks:
+      - backend
+      - frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── APPLICATION LAYER ──────────────────────
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: ethphish-api
+    environment:
+      <<: *common-env
+      <<: *gcp-env
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MODEL_ARTIFACTS_DIR: /app/model_artifacts
+      INFERENCE_MODE: ${INFERENCE_MODE:-auto}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./model_artifacts:/app/model_artifacts:ro
+      - ./credentials:/app/credentials:ro
+      - ./configs:/app/configs:ro
+      - ./logs/api:/app/logs
+    depends_on:
+      - kafka
+    networks:
+      - backend
+      - frontend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: ethphish-dashboard
+    environment:
+      <<: *common-env
+      API_URL: http://api:8000
+    ports:
+      - "${DASHBOARD_PORT:-8501}:8501"
+    depends_on:
+      - api
+    networks:
+      - frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── OPTIONAL: SPARK (profile: full) ────────
+
+  spark-master:
+    image: bitnami/spark:3.5
+    container_name: ethphish-spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_HOST=spark-master
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/gcp-service-account.json
+    ports:
+      - "${SPARK_MASTER_UI_PORT:-8080}:8080"
+      - "7077:7077"
+    volumes:
+      - ./credentials:/app/credentials:ro
+    networks:
+      - backend
+    profiles:
+      - full
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  spark-worker:
+    image: bitnami/spark:3.5
+    container_name: ethphish-spark-worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_WORKER_CORES=2
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/gcp-service-account.json
+    depends_on:
+      - spark-master
+    volumes:
+      - ./credentials:/app/credentials:ro
+    networks:
+      - backend
+    profiles:
+      - full
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # ── OPTIONAL: MONITORING (profile: monitoring) ─
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ethphish-prometheus
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - backend
+    profiles:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: ethphish-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - frontend
+      - backend
+    profiles:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NETWORKS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# VOLUMES (minimal — storage is on GCP!)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+volumes:
+  grafana_data:

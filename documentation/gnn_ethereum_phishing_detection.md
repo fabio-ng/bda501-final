@@ -59,7 +59,7 @@ This system uses **Graph Neural Networks (GNNs)** to classify Ethereum accounts 
 ```
 Ethereum Blockchain → Data Ingestion → Storage → Processing (GNN) → Output
        |                    |              |            |               |
-   Etherscan API       Apache Kafka     GCS /       Apache Spark    Dashboard /
+   Etherscan API       Apache Kafka     GCS         Apache Spark    Dashboard /
    Google BigQuery     Spark Streaming  Delta Lake   + DGL/PyG      Alert API
 ```
 

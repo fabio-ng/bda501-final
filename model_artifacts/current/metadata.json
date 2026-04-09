@@ -1,0 +1,42 @@
+{
+  "model_id": "mock-predictor",
+  "model_version": "mock-0.0.0",
+  "model_type": "MockPredictor",
+  "created_at": "2026-04-09T00:00:00Z",
+  "created_by": "platform-team",
+
+  "input_schema": {
+    "type": "address_string",
+    "feature_count": 0,
+    "feature_names": [],
+    "normalization": null
+  },
+
+  "output_schema": {
+    "type": "binary_classification",
+    "classes": ["legitimate", "phishing"],
+    "output_dim": 2,
+    "output_format": "deterministic_hash"
+  },
+
+  "inference_config": {
+    "default_threshold": 0.7,
+    "batch_size": 256,
+    "device": "cpu",
+    "requires_graph": false
+  },
+
+  "metrics": {
+    "test_precision": null,
+    "test_recall": null,
+    "test_f1": null,
+    "test_roc_auc": null,
+    "test_pr_auc": null,
+    "note": "Mock predictor — no real metrics available"
+  },
+
+  "compatibility": {
+    "python_version": ">=3.10",
+    "api_version": ">=1.0.0"
+  }
+}

@@ -1,1 +1,25 @@
 .claude
+
+# GCP credentials (NEVER commit!)
+credentials/
+*.json.key
+
+# Environment
+.env
+.env.local
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Local data
+data/raw/
+logs/
+model_artifacts/current/model.pt
+model_artifacts/v*/
+
+# OS
+.DS_Store
+Thumbs.db
