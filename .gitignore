@@ -1,0 +1,40 @@
+# Environment
+.env
+credentials/
+*.key
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+*.whl
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+
+# Data files
+*.parquet
+checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Airflow
+airflow/logs/
+airflow/airflow.db

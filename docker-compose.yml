@@ -1,0 +1,270 @@
+version: "3.8"
+
+# ============================================
+# ETH Transaction Analytics Platform
+# ============================================
+# Full Stack: Infrastructure + Crawler + Spark + Airflow + API + Web
+# Usage: docker compose up -d
+# ============================================
+
+services:
+  # ── Message Broker ──────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.3
+    container_name: eth-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - eth-net
+    healthcheck:
+      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.3
+    container_name: eth-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    networks:
+      - eth-net
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.3
+    container_name: eth-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./kafka/create-topics.sh:/create-topics.sh
+    entrypoint: ["/bin/bash", "/create-topics.sh"]
+    networks:
+      - eth-net
+
+  # ── Serving Database ────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: eth-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ethdb}
+      POSTGRES_USER: ${POSTGRES_USER:-ethuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ethpass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./sql/00-create-airflow-db.sh:/docker-entrypoint-initdb.d/00-create-airflow-db.sh
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    networks:
+      - eth-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ethuser} -d ${POSTGRES_DB:-ethdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── ETH Crawler ──────────────────────────────
+  crawler:
+    build: ./crawler
+    container_name: eth-crawler
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: eth-txns
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./credentials:/app/credentials:ro
+    restart: always
+    networks:
+      - eth-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Spark Cluster ────────────────────────────
+  spark-master:
+    build: ./spark
+    container_name: eth-spark-master
+    environment:
+      SPARK_MODE: master
+      SPARK_MASTER_HOST: spark-master
+    env_file: .env
+    ports:
+      - "7077:7077"
+      - "8082:8080"
+    volumes:
+      - ./credentials:/app/credentials:ro
+    networks:
+      - eth-net
+
+  spark-worker:
+    build: ./spark
+    container_name: eth-spark-worker
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_MODE: worker
+      SPARK_MASTER_URL: spark://spark-master:7077
+      SPARK_WORKER_MEMORY: 2g
+      SPARK_WORKER_CORES: 2
+    env_file: .env
+    volumes:
+      - ./credentials:/app/credentials:ro
+    networks:
+      - eth-net
+
+  # ── Airflow ──────────────────────────────────
+  airflow-init:
+    build: ./airflow
+    container_name: eth-airflow-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-ethuser}:${POSTGRES_PASSWORD:-ethpass}@postgres:5432/airflow
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    entrypoint: /bin/bash
+    command: >
+      -c "airflow db migrate &&
+          airflow users create --role Admin --username admin --password admin
+            --firstname Admin --lastname User --email admin@example.com || true"
+    networks:
+      - eth-net
+
+  airflow-webserver:
+    build: ./airflow
+    container_name: eth-airflow-webserver
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-ethuser}:${POSTGRES_PASSWORD:-ethpass}@postgres:5432/airflow
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      # Passed to DAG task functions
+      GCS_BUCKET: ${GCS_BUCKET:-eth-bigdata-project}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-ethdb}
+      POSTGRES_USER: ${POSTGRES_USER:-ethuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ethpass}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./credentials:/opt/airflow/credentials:ro
+      - airflow-logs:/opt/airflow/logs
+    networks:
+      - eth-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: always
+
+  airflow-scheduler:
+    build: ./airflow
+    container_name: eth-airflow-scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-ethuser}:${POSTGRES_PASSWORD:-ethpass}@postgres:5432/airflow
+      GCS_BUCKET: ${GCS_BUCKET:-eth-bigdata-project}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-ethdb}
+      POSTGRES_USER: ${POSTGRES_USER:-ethuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ethpass}
+    command: airflow scheduler
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./credentials:/opt/airflow/credentials:ro
+      - airflow-logs:/opt/airflow/logs
+    networks:
+      - eth-net
+    restart: always
+
+  # ── FastAPI Backend ──────────────────────────
+  api:
+    build: ./api
+    container_name: eth-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    ports:
+      - "8000:8000"
+    networks:
+      - eth-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # ── React Frontend ───────────────────────────
+  web:
+    build: ./web
+    container_name: eth-web
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+    networks:
+      - eth-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+networks:
+  eth-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  airflow-logs:
