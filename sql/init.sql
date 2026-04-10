@@ -32,8 +32,8 @@ CREATE INDEX IF NOT EXISTS idx_snapshot_date_rank
 -- wallet_graph_edge: one row per directed wallet pair (180-day rolling window)
 CREATE TABLE IF NOT EXISTS wallet_graph_edge (
     id              SERIAL PRIMARY KEY,
-    from_wallet     VARCHAR(42) NOT NULL,
-    to_wallet       VARCHAR(42) NOT NULL,
+    from_wallet     VARCHAR(42),
+    to_wallet       VARCHAR(42),
     total_volume    NUMERIC(38,18) NOT NULL DEFAULT 0,
     tx_count        BIGINT NOT NULL DEFAULT 0,
     period_start    DATE NOT NULL,
@@ -57,8 +57,8 @@ CREATE INDEX IF NOT EXISTS idx_edge_to
 -- Staging table for atomic swap (identical schema, indexes not needed)
 CREATE TABLE IF NOT EXISTS wallet_graph_edge_staging (
     id              SERIAL PRIMARY KEY,
-    from_wallet     VARCHAR(42) NOT NULL,
-    to_wallet       VARCHAR(42) NOT NULL,
+    from_wallet     VARCHAR(42),
+    to_wallet       VARCHAR(42),
     total_volume    NUMERIC(38,18) NOT NULL DEFAULT 0,
     tx_count        BIGINT NOT NULL DEFAULT 0,
     period_start    DATE NOT NULL,

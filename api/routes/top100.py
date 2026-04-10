@@ -1,9 +1,8 @@
 """GET /api/top100 — paginated daily wallet snapshot."""
 
-import re
-from datetime import date
+from datetime import date as Date
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query
 
 from db.connection import get_pool
 from db.models import get_top100
@@ -11,20 +10,19 @@ from schemas.responses import Top100Response, WalletSnapshotItem
 
 router = APIRouter()
 
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
 
 @router.get("/api/top100", response_model=Top100Response)
 async def top100(
-    date: str = Query(..., description="Snapshot date (YYYY-MM-DD)"),
+    snap_date: Date = Query(
+        ...,
+        alias="date",
+        description="Snapshot date (YYYY-MM-DD)",
+    ),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
 ):
-    if not DATE_RE.match(date):
-        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
-
     pool = get_pool()
-    rows, total_count = await get_top100(pool, date, page, page_size)
+    rows, total_count = await get_top100(pool, snap_date, page, page_size)
 
     items = [
         WalletSnapshotItem(
@@ -42,7 +40,7 @@ async def top100(
     ]
 
     return Top100Response(
-        date=date,
+        date=snap_date.isoformat(),
         page=page,
         page_size=page_size,
         total_count=total_count,

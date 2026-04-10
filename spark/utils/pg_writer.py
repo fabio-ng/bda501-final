@@ -35,6 +35,21 @@ def _pg_connect():
     )
 
 
+def existing_snapshot_dates() -> set[str]:
+    """ISO dates (YYYY-MM-DD) that already have at least one row in wallet_daily_snapshot."""
+    conn = _pg_connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT snapshot_date FROM wallet_daily_snapshot")
+            rows = cur.fetchall()
+        out: set[str] = set()
+        for (d,) in rows:
+            out.add(d.isoformat() if hasattr(d, "isoformat") else str(d))
+        return out
+    finally:
+        conn.close()
+
+
 def upsert_snapshot(df: DataFrame) -> None:
     """Write daily snapshot to PostgreSQL via temp table + upsert.
 
@@ -120,8 +135,8 @@ def atomic_swap_edges(df: DataFrame) -> None:
             cur.execute("""
                 CREATE TABLE wallet_graph_edge_staging (
                     id              SERIAL PRIMARY KEY,
-                    from_wallet     VARCHAR(42) NOT NULL,
-                    to_wallet       VARCHAR(42) NOT NULL,
+                    from_wallet     VARCHAR(42),
+                    to_wallet       VARCHAR(42),
                     total_volume    NUMERIC(38,18) NOT NULL DEFAULT 0,
                     tx_count        BIGINT NOT NULL DEFAULT 0,
                     period_start    DATE NOT NULL,

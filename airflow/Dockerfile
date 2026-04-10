@@ -1,4 +1,4 @@
-FROM apache/airflow:2.8-python3.11
+FROM apache/airflow:2.8.4-python3.11
 
 USER root
 RUN apt-get update && \
@@ -7,7 +7,10 @@ RUN apt-get update && \
 
 USER airflow
 
+ARG AIRFLOW_CONSTRAINTS_URL="https://raw.githubusercontent.com/apache/airflow/constraints-2.8.4/constraints-3.11.txt"
+
 RUN pip install --no-cache-dir \
+    --constraint "${AIRFLOW_CONSTRAINTS_URL}" \
     apache-airflow-providers-google \
     apache-airflow-providers-apache-spark \
     google-cloud-storage \

@@ -1,11 +1,14 @@
 """Database query helpers for wallet snapshots and graph edges."""
 
+from datetime import date
+from decimal import Decimal
+
 import asyncpg
 
 
 async def get_top100(
     pool: asyncpg.Pool,
-    date: str,
+    snapshot_date: date,
     page: int,
     page_size: int,
 ) -> tuple[list[dict], int]:
@@ -26,14 +29,14 @@ async def get_top100(
             ORDER BY rank
             LIMIT $2 OFFSET $3
             """,
-            date,
+            snapshot_date,
             page_size,
             offset,
         )
 
         count_row = await conn.fetchrow(
             "SELECT COUNT(*) AS cnt FROM wallet_daily_snapshot WHERE snapshot_date = $1",
-            date,
+            snapshot_date,
         )
         total_count = count_row["cnt"] if count_row else 0
 
@@ -52,6 +55,8 @@ async def get_wallet_graph(
     filtered by minimum volume and capped at limit.
     """
     async with pool.acquire() as conn:
+        # Bind NUMERIC as Decimal — asyncpg encodes float poorly for DECIMAL columns.
+        min_vol = Decimal(str(min_volume))
         rows = await conn.fetch(
             """
             SELECT from_wallet, to_wallet, total_volume, tx_count,
@@ -63,7 +68,7 @@ async def get_wallet_graph(
             LIMIT $3
             """,
             address.lower(),
-            min_volume,
+            min_vol,
             limit,
         )
 

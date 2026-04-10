@@ -3,6 +3,7 @@
 import os
 import logging
 
+from py4j.java_gateway import java_import
 from pyspark.sql import SparkSession, DataFrame
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,28 @@ def read_raw_partition(spark: SparkSession, date_str: str, bucket: str = GCS_BUC
     path = f"gs://{bucket}/raw/transactions/dt={date_str}/"
     logger.info("Reading raw partition: %s", path)
     return spark.read.parquet(path)
+
+
+def list_raw_partition_dates(spark: SparkSession, bucket: str = GCS_BUCKET) -> list[str]:
+    """List YYYY-MM-DD dates that exist under raw/transactions/dt=... on GCS."""
+    jvm = spark._jvm
+    hconf = spark._jsc.hadoopConfiguration()
+    java_import(jvm, "org.apache.hadoop.fs.Path")
+    java_import(jvm, "org.apache.hadoop.fs.FileSystem")
+    parent = jvm.Path(f"gs://{bucket}/raw/transactions/")
+    fs = jvm.FileSystem.get(parent.toUri(), hconf)
+    if not fs.exists(parent):
+        logger.warning("Raw transactions parent missing: %s", parent)
+        return []
+    dates: list[str] = []
+    for st in fs.listStatus(parent):
+        if st.isDirectory():
+            name = st.getPath().getName()
+            if name.startswith("dt="):
+                dates.append(name[3:])
+    dates.sort()
+    logger.info("Found %d raw partition(s) under gs://%s/raw/transactions/", len(dates), bucket)
+    return dates
 
 
 def read_edge_aggregate(

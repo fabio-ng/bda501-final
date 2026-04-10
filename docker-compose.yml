@@ -1,11 +1,16 @@
-version: "3.8"
-
 # ============================================
 # ETH Transaction Analytics Platform
 # ============================================
 # Full Stack: Infrastructure + Crawler + Spark + Airflow + API + Web
 # Usage: docker compose up -d
+# Runtime options:
+# - Keep DOCKER_SOCK_PATH=/var/run/docker.sock for container mount
+# - Docker Desktop CLI: DOCKER_HOST=unix:///Users/<your-user>/.docker/run/docker.sock
+# - Rancher Desktop CLI: DOCKER_HOST=unix:///Users/<your-user>/.rd/docker.sock
 # ============================================
+
+x-docker-host-env: &docker-host-env
+  DOCKER_HOST: ${DOCKER_HOST:-unix:///var/run/docker.sock}
 
 services:
   # ── Message Broker ──────────────────────────
@@ -66,6 +71,15 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: eth-postgres
+    # Bulk JDBC (Spark) generates heavy WAL; raise limits to avoid "checkpoints too frequently".
+    command:
+      - postgres
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - min_wal_size=512MB
+      - -c
+      - checkpoint_timeout=15min
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ethdb}
       POSTGRES_USER: ${POSTGRES_USER:-ethuser}
@@ -114,14 +128,20 @@ services:
   spark-master:
     build: ./spark
     container_name: eth-spark-master
+    user: "root"
     environment:
       SPARK_MODE: master
       SPARK_MASTER_HOST: spark-master
+      SPARK_SUBMIT_OPTS: -Duser.home=/tmp -Divy.home=/tmp/.ivy2 -Divy.cache.dir=/tmp/.ivy2
+      USER: spark
+      HADOOP_USER_NAME: spark
     env_file: .env
     ports:
       - "7077:7077"
       - "8082:8080"
     volumes:
+      # Live-mount app code so spark-submit sees latest Python without image rebuild
+      - ./spark:/app
       - ./credentials:/app/credentials:ro
     networks:
       - eth-net
@@ -129,6 +149,7 @@ services:
   spark-worker:
     build: ./spark
     container_name: eth-spark-worker
+    user: "root"
     depends_on:
       - spark-master
     environment:
@@ -136,8 +157,12 @@ services:
       SPARK_MASTER_URL: spark://spark-master:7077
       SPARK_WORKER_MEMORY: 2g
       SPARK_WORKER_CORES: 2
+      SPARK_SUBMIT_OPTS: -Duser.home=/tmp -Divy.home=/tmp/.ivy2 -Divy.cache.dir=/tmp/.ivy2
+      USER: spark
+      HADOOP_USER_NAME: spark
     env_file: .env
     volumes:
+      - ./spark:/app
       - ./credentials:/app/credentials:ro
     networks:
       - eth-net
@@ -150,6 +175,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      <<: *docker-host-env
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-ethuser}:${POSTGRES_PASSWORD:-ethpass}@postgres:5432/airflow
       _AIRFLOW_DB_MIGRATE: "true"
@@ -161,6 +187,8 @@ services:
       -c "airflow db migrate &&
           airflow users create --role Admin --username admin --password admin
             --firstname Admin --lastname User --email admin@example.com || true"
+    volumes:
+      - ${DOCKER_SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock
     networks:
       - eth-net
 
@@ -172,6 +200,7 @@ services:
         condition: service_completed_successfully
     env_file: .env
     environment:
+      <<: *docker-host-env
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-ethuser}:${POSTGRES_PASSWORD:-ethpass}@postgres:5432/airflow
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
@@ -182,6 +211,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-ethdb}
       POSTGRES_USER: ${POSTGRES_USER:-ethuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ethpass}
+    command: airflow webserver
     ports:
       - "8080:8080"
     volumes:
@@ -189,6 +219,7 @@ services:
       - ./airflow/plugins:/opt/airflow/plugins
       - ./credentials:/opt/airflow/credentials:ro
       - airflow-logs:/opt/airflow/logs
+      - ${DOCKER_SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock
     networks:
       - eth-net
     healthcheck:
@@ -206,6 +237,7 @@ services:
         condition: service_completed_successfully
     env_file: .env
     environment:
+      <<: *docker-host-env
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-ethuser}:${POSTGRES_PASSWORD:-ethpass}@postgres:5432/airflow
       GCS_BUCKET: ${GCS_BUCKET:-eth-bigdata-project}
@@ -220,6 +252,7 @@ services:
       - ./airflow/plugins:/opt/airflow/plugins
       - ./credentials:/opt/airflow/credentials:ro
       - airflow-logs:/opt/airflow/logs
+      - ${DOCKER_SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock
     networks:
       - eth-net
     restart: always
