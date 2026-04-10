@@ -71,11 +71,21 @@ class DatabasePool:
             yield conn
         except Exception as e:
             logger.error(f"Database connection error: {e}")
-            if conn:
-                DatabasePool._pool.putconn(conn, close=True)
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                try:
+                    DatabasePool._pool.putconn(conn, close=True)
+                finally:
+                    conn = None
             raise
         finally:
-            if conn:
+            # Only return to the pool if we did NOT already hand it back in
+            # the except branch — double-putconn triggers "trying to put
+            # unkeyed connection" errors from psycopg2.
+            if conn is not None:
                 DatabasePool._pool.putconn(conn)
 
     @classmethod
@@ -163,11 +173,23 @@ class Database:
         Log a prediction to the database.
         Returns: prediction_id
         """
+        # The predictions table has NOT NULL constraints on `prediction` and
+        # `confidence` (legacy columns). Derive them from the score/threshold.
+        prediction_label = "phishing" if is_phishing else "legitimate"
+        if phishing_score >= 0.85 or phishing_score <= 0.15:
+            confidence_label = "high"
+        elif phishing_score >= 0.65 or phishing_score <= 0.35:
+            confidence_label = "medium"
+        else:
+            confidence_label = "low"
+
         query = """
-        INSERT INTO predictions (address, phishing_score, is_phishing,
-                                model_version, inference_mode, threshold,
-                                inference_time_ms, created_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+        INSERT INTO predictions (
+            address, phishing_score, prediction, confidence,
+            threshold_used, is_phishing, model_version, threshold,
+            inference_mode, inference_time_ms, source, created_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
         RETURNING id
         """
         try:
@@ -176,15 +198,19 @@ class Database:
                     cur.execute(query, (
                         address,
                         phishing_score,
+                        prediction_label,
+                        confidence_label,
+                        threshold,
                         is_phishing,
                         model_version,
-                        inference_mode,
                         threshold,
+                        inference_mode,
                         inference_time_ms,
+                        "api",
                     ))
                     prediction_id = cur.fetchone()[0]
                 conn.commit()
-                return prediction_id
+                return str(prediction_id)
         except Exception as e:
             logger.error(f"Error logging prediction: {e}")
             raise
@@ -202,9 +228,11 @@ class Database:
         Returns: alert_id
         """
         query = """
-        INSERT INTO alerts (address, phishing_score, alert_type, severity,
-                           message, created_at)
-        VALUES (%s, %s, %s, %s, %s, NOW())
+        INSERT INTO alerts (
+            address, phishing_score, trigger_source, alert_type, severity,
+            message, created_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, NOW())
         RETURNING id
         """
         try:
@@ -213,13 +241,14 @@ class Database:
                     cur.execute(query, (
                         address,
                         phishing_score,
+                        "api",
                         alert_type,
                         severity,
                         message,
                     ))
                     alert_id = cur.fetchone()[0]
                 conn.commit()
-                return alert_id
+                return str(alert_id)
         except Exception as e:
             logger.error(f"Error creating alert: {e}")
             raise

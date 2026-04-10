@@ -22,4 +22,5 @@ model_artifacts/v*/
 
 # OS
 .DS_Store
-Thumbs.db
+Thumbs.dbcredentials/
+credentials/

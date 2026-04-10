@@ -70,17 +70,28 @@ async def predict_address(
                 message=f"Address flagged with phishing score {pred_result['phishing_score']:.2%}",
             )
 
-        # Build response
+        # Build response. Different predictors return risk_factors either as
+        # a list of dicts or a list of strings — normalize here.
         risk_factors = None
-        if pred_request.include_risk_factors and "risk_factors" in pred_result:
-            risk_factors = [
-                RiskFactor(
-                    name=rf.get("name", "unknown"),
-                    value=float(rf.get("value", 0.0)),
-                    description=rf.get("description"),
-                )
-                for rf in pred_result["risk_factors"]
-            ]
+        if pred_request.include_risk_factors and pred_result.get("risk_factors"):
+            risk_factors = []
+            for rf in pred_result["risk_factors"]:
+                if isinstance(rf, dict):
+                    risk_factors.append(
+                        RiskFactor(
+                            name=rf.get("name", "unknown"),
+                            value=float(rf.get("value", 0.0)),
+                            description=rf.get("description"),
+                        )
+                    )
+                else:
+                    risk_factors.append(
+                        RiskFactor(
+                            name=str(rf),
+                            value=float(pred_result["phishing_score"]),
+                            description=None,
+                        )
+                    )
 
         return PredictAddressResponse(
             address=address,
@@ -125,10 +136,12 @@ async def predict_batch(
         logger_svc = get_prediction_logger()
 
         predictions = []
+        total_inference_ms = 0.0
 
         for address in addresses:
             # Get prediction
             pred_result = predictor.predict(address)
+            total_inference_ms += float(pred_result.get("inference_time_ms", 0.0))
             is_phishing = pred_result["phishing_score"] >= settings.PHISHING_SCORE_THRESHOLD
 
             # Log prediction
@@ -153,17 +166,27 @@ async def predict_batch(
                     severity=severity,
                 )
 
-            # Build batch prediction
+            # Build batch prediction — same dict/str normalization as /predict/address
             risk_factors = None
-            if batch_request.include_risk_factors and "risk_factors" in pred_result:
-                risk_factors = [
-                    RiskFactor(
-                        name=rf.get("name", "unknown"),
-                        value=float(rf.get("value", 0.0)),
-                        description=rf.get("description"),
-                    )
-                    for rf in pred_result["risk_factors"]
-                ]
+            if batch_request.include_risk_factors and pred_result.get("risk_factors"):
+                risk_factors = []
+                for rf in pred_result["risk_factors"]:
+                    if isinstance(rf, dict):
+                        risk_factors.append(
+                            RiskFactor(
+                                name=rf.get("name", "unknown"),
+                                value=float(rf.get("value", 0.0)),
+                                description=rf.get("description"),
+                            )
+                        )
+                    else:
+                        risk_factors.append(
+                            RiskFactor(
+                                name=str(rf),
+                                value=float(pred_result["phishing_score"]),
+                                description=None,
+                            )
+                        )
 
             predictions.append(
                 BatchPrediction(
@@ -178,7 +201,7 @@ async def predict_batch(
         return PredictBatchResponse(
             predictions=predictions,
             batch_size=len(addresses),
-            processing_time_ms=sum(p.inference_time_ms for p in predictions),
+            processing_time_ms=total_inference_ms,
             timestamp=datetime.utcnow(),
             correlation_id=correlation_id,
         )

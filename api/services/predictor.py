@@ -24,6 +24,17 @@ class Predictor:
         self.model_loader = model_loader
         self.metadata = model_loader.load_metadata()
 
+    # Map string confidence labels (from predictors) to numeric values so the
+    # API schema (which wants a float) stays happy.
+    _CONFIDENCE_MAP = {"high": 0.9, "medium": 0.65, "low": 0.4}
+
+    def _coerce_confidence(self, raw) -> float:
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        if isinstance(raw, str):
+            return self._CONFIDENCE_MAP.get(raw.lower(), 0.5)
+        return 0.0
+
     def predict(self, address: str) -> Dict[str, Any]:
         """
         Predict phishing probability for a single address.
@@ -34,14 +45,39 @@ class Predictor:
             result = self.predictor.predict(address)
             elapsed = (time.time() - start) * 1000
 
-            # Normalize result to expected format
+            # Support both naming conventions from Mock/Real predictors.
+            score = float(
+                result.get("phishing_probability",
+                           result.get("phishing_score",
+                                      result.get("score", 0.0)))
+            )
             return {
                 "address": address,
-                "phishing_score": float(result.get("score", 0.0)),
-                "confidence": float(result.get("confidence", 0.0)),
+                "phishing_score": score,
+                "is_phishing": bool(
+                    result.get(
+                        "is_phishing",
+                        score >= float(
+                            self.metadata.get("threshold", settings.PHISHING_SCORE_THRESHOLD)
+                        ),
+                    )
+                ),
+                "confidence": self._coerce_confidence(result.get("confidence", 0.5)),
+                "prediction": result.get(
+                    "prediction",
+                    "phishing" if score >= 0.7 else "legitimate",
+                ),
                 "risk_factors": result.get("risk_factors", []),
                 "model_version": self.metadata.get("version", "unknown"),
-                "inference_time_ms": elapsed,
+                "inference_time_ms": float(
+                    result.get("inference_time_ms", elapsed)
+                ),
+                "threshold_used": float(
+                    result.get(
+                        "threshold_used",
+                        self.metadata.get("threshold", settings.PHISHING_SCORE_THRESHOLD),
+                    )
+                ),
             }
         except Exception as e:
             logger.error(f"Prediction error for {address}: {e}")
@@ -49,10 +85,15 @@ class Predictor:
             return {
                 "address": address,
                 "phishing_score": 0.0,
+                "is_phishing": False,
                 "confidence": 0.0,
+                "prediction": "legitimate",
                 "risk_factors": [],
                 "model_version": self.metadata.get("version", "unknown"),
                 "inference_time_ms": (time.time() - start) * 1000,
+                "threshold_used": float(
+                    self.metadata.get("threshold", settings.PHISHING_SCORE_THRESHOLD)
+                ),
                 "error": str(e),
             }
 

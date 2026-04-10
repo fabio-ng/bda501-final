@@ -70,7 +70,7 @@ class ModelLoader:
         try:
             # Import here to avoid import errors if torch not available
             import torch
-            from model_runtime.predictors import RealGraphSAGEPredictor
+            from model_runtime.gnn_predictor import GNNPredictor as RealGraphSAGEPredictor
 
             checkpoint_path = os.path.join(
                 self.artifacts_dir,
@@ -91,7 +91,7 @@ class ModelLoader:
     def load_mock_predictor(self):
         """Load the mock predictor for testing without model artifacts."""
         try:
-            from model_runtime.predictors import MockPredictor
+            from model_runtime import MockPredictor
 
             predictor = MockPredictor()
             logger.info("Loaded mock predictor")

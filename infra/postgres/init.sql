@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS addresses (
     label           SMALLINT,                  -- 0=legit, 1=phishing, NULL=unknown
     label_source    VARCHAR(100),              -- 'xblock-eth', 'etherscan', 'analyst'
     first_seen_at   TIMESTAMP,
+    first_seen      TIMESTAMP,                 -- API-facing alias for first_seen_at
     last_seen_at    TIMESTAMP,
     total_tx_count  INTEGER DEFAULT 0,
     is_contract     BOOLEAN DEFAULT FALSE,
@@ -22,31 +23,7 @@ CREATE TABLE IF NOT EXISTS addresses (
 CREATE INDEX IF NOT EXISTS idx_addresses_label ON addresses(label);
 CREATE INDEX IF NOT EXISTS idx_addresses_updated ON addresses(updated_at);
 
--- 2. predictions: Every prediction made by the system
-CREATE TABLE IF NOT EXISTS predictions (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    address         VARCHAR(42) NOT NULL REFERENCES addresses(address)
-                        ON DELETE CASCADE,
-    phishing_score  REAL NOT NULL CHECK (phishing_score BETWEEN 0 AND 1),
-    prediction      VARCHAR(20) NOT NULL,      -- 'phishing' | 'legitimate'
-    confidence      VARCHAR(10) NOT NULL,       -- 'high' | 'medium' | 'low'
-    threshold_used  REAL NOT NULL DEFAULT 0.7,
-    model_version_id INTEGER REFERENCES model_versions(id),
-    inference_mode  VARCHAR(10) NOT NULL DEFAULT 'mock',  -- 'mock' | 'real'
-    inference_time_ms REAL,
-    source          VARCHAR(20) NOT NULL DEFAULT 'api',  -- 'api' | 'batch' | 'streaming'
-    is_known_address BOOLEAN DEFAULT FALSE,
-    risk_factors    JSONB,                     -- ["factor1", "factor2"]
-    request_metadata JSONB,                    -- {correlation_id, ip, user_agent}
-    created_at      TIMESTAMP DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_predictions_address ON predictions(address);
-CREATE INDEX IF NOT EXISTS idx_predictions_score ON predictions(phishing_score DESC);
-CREATE INDEX IF NOT EXISTS idx_predictions_created ON predictions(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_predictions_source ON predictions(source);
-CREATE INDEX IF NOT EXISTS idx_predictions_model ON predictions(model_version_id);
-
--- 3. model_versions: Registered model versions
+-- 2. model_versions: Registered model versions (must precede predictions FK)
 CREATE TABLE IF NOT EXISTS model_versions (
     id              SERIAL PRIMARY KEY,
     version         VARCHAR(50) UNIQUE NOT NULL,   -- '1.0.0', '1.1.0'
@@ -65,6 +42,35 @@ CREATE TABLE IF NOT EXISTS model_versions (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_model_active ON model_versions(is_active)
     WHERE is_active = TRUE;
+
+-- 3. predictions: Every prediction made by the system
+CREATE TABLE IF NOT EXISTS predictions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    address         VARCHAR(42) NOT NULL REFERENCES addresses(address)
+                        ON DELETE CASCADE,
+    phishing_score  REAL NOT NULL CHECK (phishing_score BETWEEN 0 AND 1),
+    prediction      VARCHAR(20) NOT NULL,      -- 'phishing' | 'legitimate'
+    confidence      VARCHAR(10) NOT NULL,       -- 'high' | 'medium' | 'low'
+    threshold_used  REAL NOT NULL DEFAULT 0.7,
+    model_version_id INTEGER REFERENCES model_versions(id),
+    inference_mode  VARCHAR(10) NOT NULL DEFAULT 'mock',  -- 'mock' | 'real'
+    inference_time_ms REAL,
+    -- Convenience columns kept in sync with the more normalized fields above so
+    -- that the FastAPI layer (api/database.py) can read them directly without joins.
+    is_phishing     BOOLEAN,
+    model_version   VARCHAR(50),
+    threshold       REAL,
+    source          VARCHAR(20) NOT NULL DEFAULT 'api',  -- 'api' | 'batch' | 'streaming'
+    is_known_address BOOLEAN DEFAULT FALSE,
+    risk_factors    JSONB,                     -- ["factor1", "factor2"]
+    request_metadata JSONB,                    -- {correlation_id, ip, user_agent}
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_predictions_address ON predictions(address);
+CREATE INDEX IF NOT EXISTS idx_predictions_score ON predictions(phishing_score DESC);
+CREATE INDEX IF NOT EXISTS idx_predictions_created ON predictions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_predictions_source ON predictions(source);
+CREATE INDEX IF NOT EXISTS idx_predictions_model ON predictions(model_version_id);
 
 -- 4. model_metrics: Evaluation metrics per model version
 CREATE TABLE IF NOT EXISTS model_metrics (
@@ -87,6 +93,11 @@ CREATE TABLE IF NOT EXISTS alerts (
     trigger_source  VARCHAR(20) NOT NULL,         -- 'streaming', 'batch', 'api'
     trigger_tx_hash VARCHAR(66),                  -- transaction that triggered alert
     model_version_id INTEGER REFERENCES model_versions(id),
+    -- API-facing columns (kept in sync via seed/migration)
+    alert_type      VARCHAR(40) DEFAULT 'phishing_detection',
+    severity        VARCHAR(20),                  -- LOW | MEDIUM | HIGH | CRITICAL
+    message         TEXT,
+    notes           TEXT,
     reviewed        BOOLEAN DEFAULT FALSE,
     analyst_label   SMALLINT,                     -- NULL until reviewed
     reviewer_notes  TEXT,

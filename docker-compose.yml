@@ -17,8 +17,6 @@
 #   docker-compose --profile full --profile monitoring up -d  # Full
 # ============================================================
 
-version: "3.8"
-
 x-common-env: &common-env
   TZ: UTC
   GOOGLE_APPLICATION_CREDENTIALS: /app/credentials/gcp-service-account.json
@@ -113,8 +111,7 @@ services:
       dockerfile: api/Dockerfile
     container_name: ethphish-api
     environment:
-      <<: *common-env
-      <<: *gcp-env
+      <<: [*common-env, *gcp-env]
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       MODEL_ARTIFACTS_DIR: /app/model_artifacts
       INFERENCE_MODE: ${INFERENCE_MODE:-auto}
