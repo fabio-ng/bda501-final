@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback, memo } from "react";
 import { useParams, Link } from "react-router-dom";
-import * as d3 from "d3";
+import { select } from "d3-selection";
+import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from "d3-force";
+import { zoom as d3Zoom } from "d3-zoom";
+import { drag as d3Drag } from "d3-drag";
 import { useWalletGraph } from "../hooks/useApi";
 import {
   transformApiResponse,
@@ -9,56 +12,70 @@ import {
   formatVolume,
 } from "../utils/graphLayout";
 
-const WIDTH = 1160;
+const WIDTH  = 1160;
 const HEIGHT = 700;
 
-export default function WalletGraph() {
-  const { address } = useParams();
-  const svgRef = useRef(null);
-  const tooltipRef = useRef(null);
+function WalletGraph() {
+  const { address }  = useParams();
+  const svgRef       = useRef(null);
+  const tooltipRef   = useRef(null);
+  const simulationRef = useRef(null);
   const [minVolume, setMinVolume] = useState(0.1);
 
   const { data, loading, error } = useWalletGraph(address, minVolume, 500);
 
-  useEffect(() => {
-    if (!data || !svgRef.current) return;
+  // Safe address display — guard against short/malformed addresses
+  const displayAddr = useMemo(() => {
+    if (!address || address.length <= 14) return address || "";
+    return `${address.slice(0, 8)}...${address.slice(-6)}`;
+  }, [address]);
 
-    const { nodes, links } = transformApiResponse(data, address);
+  // Memoised transform — D3 effect only re-runs when the API response changes
+  const graph = useMemo(() => {
+    if (!data || !address) return null;
+    return transformApiResponse(data, address);
+  }, [data, address]);
+
+  const handleMinVolumeChange = useCallback((e) => {
+    setMinVolume(parseFloat(e.target.value));
+  }, []);
+
+  // ── D3 render effect ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!graph || !svgRef.current) return;
+
+    const { nodes, links } = graph;
     if (nodes.length === 0) return;
 
-    // Volume range for edge width scaling
     const volumes = links.map((l) => l.volume);
-    const minVol = Math.min(...volumes, 0.001);
-    const maxVol = Math.max(...volumes, 0.001);
+    const minVol  = Math.min(...volumes, 0.001);
+    const maxVol  = Math.max(...volumes, 0.001);
 
-    // Clear previous render
-    const svg = d3.select(svgRef.current);
+    const svg = select(svgRef.current);
+
+    // Full cleanup before re-render
+    if (simulationRef.current) {
+      simulationRef.current.stop();
+      simulationRef.current = null;
+    }
+    svg.on(".zoom", null);
     svg.selectAll("*").remove();
 
-    // Container group for zoom/pan
     const g = svg.append("g");
 
-    // Zoom behavior
-    const zoom = d3.zoom().scaleExtent([0.1, 5]).on("zoom", (event) => {
+    const zoom = d3Zoom().scaleExtent([0.1, 5]).on("zoom", (event) => {
       g.attr("transform", event.transform);
     });
     svg.call(zoom);
 
-    // Simulation
-    const simulation = d3
-      .forceSimulation(nodes)
-      .force(
-        "link",
-        d3
-          .forceLink(links)
-          .id((d) => d.id)
-          .distance(100)
-      )
-      .force("charge", d3.forceManyBody().strength(-200))
-      .force("center", d3.forceCenter(WIDTH / 2, HEIGHT / 2))
-      .force("collide", d3.forceCollide(20));
+    const simulation = forceSimulation(nodes)
+      .force("link", forceLink(links).id((d) => d.id).distance(100))
+      .force("charge", forceManyBody().strength(-200))
+      .force("center", forceCenter(WIDTH / 2, HEIGHT / 2))
+      .force("collide", forceCollide(20));
 
-    // Edges
+    simulationRef.current = simulation;
+
     const link = g
       .append("g")
       .selectAll("line")
@@ -68,7 +85,6 @@ export default function WalletGraph() {
       .attr("stroke-width", (d) => edgeWidth(d.volume, minVol, maxVol))
       .attr("stroke-opacity", 0.6);
 
-    // Nodes
     const node = g
       .append("g")
       .selectAll("circle")
@@ -80,22 +96,20 @@ export default function WalletGraph() {
       .attr("stroke-width", 1.5)
       .call(drag(simulation));
 
-    // Tooltip
-    const tooltip = d3.select(tooltipRef.current);
+    const tooltip = select(tooltipRef.current);
 
-    // Node hover
     node
       .on("mouseover", (event, d) => {
-        const label = d.isCenter ? `${d.id} (center)` : d.id;
         tooltip
           .style("display", "block")
           .style("left", event.offsetX + 12 + "px")
           .style("top", event.offsetY - 10 + "px")
-          .html(`<span class="wallet-addr">${label}</span>`);
+          .html(
+            `<span class="wallet-addr">${d.isCenter ? `${d.id} (center)` : d.id}</span>`
+          );
       })
       .on("mouseout", () => tooltip.style("display", "none"));
 
-    // Edge hover
     link
       .on("mouseover", (event, d) => {
         tooltip
@@ -108,7 +122,6 @@ export default function WalletGraph() {
       })
       .on("mouseout", () => tooltip.style("display", "none"));
 
-    // Tick
     simulation.on("tick", () => {
       link
         .attr("x1", (d) => d.source.x)
@@ -118,9 +131,14 @@ export default function WalletGraph() {
       node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
     });
 
-    return () => simulation.stop();
-  }, [data, address]);
+    return () => {
+      simulation.stop();
+      simulationRef.current = null;
+      svg.on(".zoom", null);
+    };
+  }, [graph, address]);
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <>
       <Link to="/" className="back-link">
@@ -128,36 +146,33 @@ export default function WalletGraph() {
       </Link>
 
       <h2 style={{ marginBottom: 12 }}>
-        Wallet Graph:{" "}
-        <span className="wallet-addr">
-          {address.slice(0, 8)}...{address.slice(-6)}
-        </span>
+        Wallet Graph: <span className="wallet-addr">{displayAddr}</span>
       </h2>
 
       {data && (
         <p style={{ color: "#8b949e", marginBottom: 8, fontSize: "0.85rem" }}>
           {data.nodes.length} nodes, {data.edges.length} edges
-          {data.period_start &&
-            ` | ${data.period_start} to ${data.period_end}`}
+          {data.period_start && ` | ${data.period_start} to ${data.period_end}`}
         </p>
       )}
 
+      {/* label is inline-flex (see .controls label in index.css):
+          [Min volume (ETH):] [<range>] [0.1 ETH]  — all aligned center, 12px gap */}
       <div className="controls">
         <label>
-          Min volume (ETH):
+          <span>Min volume (ETH):</span>
           <input
             type="range"
             min="0"
             max="10"
             step="0.1"
             value={minVolume}
-            onChange={(e) => setMinVolume(parseFloat(e.target.value))}
+            onChange={handleMinVolumeChange}
           />
-          <span style={{ marginLeft: 8 }}>{minVolume} ETH</span>
+          <span>{minVolume} ETH</span>
         </label>
       </div>
 
-      {loading && <div className="loading">Loading graph...</div>}
       {error && <div className="error">Error: {error}</div>}
 
       {data && !loading && data.edges.length === 0 && (
@@ -166,13 +181,23 @@ export default function WalletGraph() {
         </div>
       )}
 
+      {/* Graph container — always rendered; overlay covers it while loading */}
       <div className="graph-container" style={{ position: "relative" }}>
-        <svg ref={svgRef} width={WIDTH} height={HEIGHT} />
-        <div
-          ref={tooltipRef}
-          className="tooltip"
-          style={{ display: "none" }}
+        <svg
+          ref={svgRef}
+          width={WIDTH}
+          height={HEIGHT}
+          style={{ opacity: loading ? 0.35 : 1, transition: "opacity 0.2s" }}
         />
+
+        {loading && (
+          <div className="graph-loading-overlay">
+            <div className="spinner" />
+            <span>{data ? "Refreshing graph…" : "Loading graph…"}</span>
+          </div>
+        )}
+
+        <div ref={tooltipRef} className="tooltip" style={{ display: "none" }} />
       </div>
 
       <div style={{ marginTop: 12, fontSize: "0.8rem", color: "#8b949e" }}>
@@ -184,12 +209,8 @@ export default function WalletGraph() {
   );
 }
 
-/**
- * D3 drag behavior for nodes.
- */
 function drag(simulation) {
-  return d3
-    .drag()
+  return d3Drag()
     .on("start", (event, d) => {
       if (!event.active) simulation.alphaTarget(0.3).restart();
       d.fx = d.x;
@@ -205,3 +226,5 @@ function drag(simulation) {
       d.fy = null;
     });
 }
+
+export default memo(WalletGraph);

@@ -38,3 +38,6 @@ docker-compose.override.yml
 # Airflow
 airflow/logs/
 airflow/airflow.db
+
+# Website
+*.mjs

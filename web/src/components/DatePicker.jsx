@@ -1,29 +1,35 @@
-import { useHealth } from "../hooks/useApi";
+import { memo } from "react";
 
 /**
- * Date input that defaults to the latest available snapshot date.
+ * Date input for snapshot selection.
+ *
+ * Props:
+ *   value       — controlled date string (YYYY-MM-DD)
+ *   onChange    — called with new date string
+ *   defaultDate — max date (latest available snapshot), used as placeholder/max
+ *   loading     — true while the parent is still fetching the default date
  */
-export default function DatePicker({ value, onChange }) {
-  const health = useHealth();
-  const defaultDate = health?.last_snapshot_date || "";
-
-  // Set default when health data loads
-  if (!value && defaultDate) {
-    // Defer to avoid state-update-during-render
-    setTimeout(() => onChange(defaultDate), 0);
-  }
-
+function DatePicker({ value, onChange, defaultDate = "", loading = false }) {
   return (
     <div className="controls">
+      {/* label is inline-flex (see .controls label in index.css):
+          [Snapshot date:] [<input date>] [Fetching…?]
+          all three items aligned center with 12px gap               */}
       <label>
-        Snapshot date:
+        <span>Snapshot date:</span>
         <input
           type="date"
           value={value || defaultDate}
           onChange={(e) => onChange(e.target.value)}
           max={defaultDate || undefined}
+          disabled={loading && !defaultDate}
         />
+        {loading && !value && (
+          <span className="date-loading-hint">Fetching latest date…</span>
+        )}
       </label>
     </div>
   );
 }
+
+export default memo(DatePicker);

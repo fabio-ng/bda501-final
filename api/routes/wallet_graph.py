@@ -2,19 +2,24 @@
 
 import re
 
-from fastapi import APIRouter, Path, Query, HTTPException
+from fastapi import APIRouter, Path, Query, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from db.connection import get_pool
 from db.models import get_wallet_graph
 from schemas.responses import WalletGraphResponse, GraphEdge, GraphNode
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
 
 @router.get("/api/wallet/{address}/graph", response_model=WalletGraphResponse)
+@limiter.limit("60/minute")
 async def wallet_graph(
+    request: Request,
     address: str = Path(..., description="ETH wallet address (0x...)"),
     min_volume: float = Query(0.1, ge=0, description="Minimum volume filter (ETH)"),
     limit: int = Query(500, ge=1, le=500, description="Max edges returned"),

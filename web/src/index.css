@@ -130,6 +130,9 @@ tr:hover {
 }
 
 .controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
   color: #8b949e;
   font-size: 0.85rem;
 }
@@ -150,6 +153,105 @@ tr:hover {
   border: 1px solid #30363d;
   overflow: hidden;
   position: relative;
+  min-height: 200px; /* ensures overlay is visible even before SVG content */
+}
+
+/* ─── Skeleton shimmer ──────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.skeleton {
+  height: 13px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    #1c2128 25%,
+    #272e38 50%,
+    #1c2128 75%
+  );
+  background-size: 1200px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeleton-row td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #21262d;
+}
+
+/* ─── Loading bar (thin stripe at top during pagination / date change) ────── */
+@keyframes loading-bar-sweep {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.loading-bar {
+  height: 2px;
+  margin-bottom: 6px;
+  border-radius: 1px;
+  background: linear-gradient(
+    90deg,
+    #58a6ff 0%,
+    #3fb950 40%,
+    #58a6ff 80%,
+    #3fb950 100%
+  );
+  background-size: 300% 100%;
+  animation: loading-bar-sweep 1.4s linear infinite;
+}
+
+/* ─── Table overlay — blocks clicks while reloading, keeps rows visible ─── */
+.table-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  cursor: wait;
+}
+
+/* ─── Spinner ────────────────────────────────────────────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #21262d;
+  border-top-color: #58a6ff;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+/* ─── Page loader — Suspense fallback while lazy chunk downloads ─────────── */
+.page-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 280px;
+}
+
+/* ─── Graph loading overlay ──────────────────────────────────────────────── */
+.graph-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(15, 17, 23, 0.55);
+  color: #8b949e;
+  font-size: 0.875rem;
+}
+
+/* ─── DatePicker "fetching" hint ─────────────────────────────────────────── */
+.date-loading-hint {
+  margin-left: 10px;
+  color: #8b949e;
+  font-size: 0.8rem;
+  font-style: italic;
 }
 
 .tooltip {

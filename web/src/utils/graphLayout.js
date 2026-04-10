@@ -43,7 +43,9 @@ export function edgeWidth(volume, minVol, maxVol) {
  */
 export function edgeColor(source, centerAddr) {
   // Outbound from center = blue, inbound to center = green
-  return source === centerAddr.toLowerCase() ? "#58a6ff" : "#3fb950";
+  // Normalize both sides to lowercase — API may return mixed-case addresses
+  const src = typeof source === "string" ? source.toLowerCase() : String(source).toLowerCase();
+  return src === centerAddr.toLowerCase() ? "#58a6ff" : "#3fb950";
 }
 
 /**

@@ -2,7 +2,9 @@
 
 from datetime import date as Date
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from db.connection import get_pool
 from db.models import get_top100
@@ -10,9 +12,14 @@ from schemas.responses import Top100Response, WalletSnapshotItem
 
 router = APIRouter()
 
+# Mirror the app-level limiter key_func; the actual Limiter instance is on app.state
+limiter = Limiter(key_func=get_remote_address)
+
 
 @router.get("/api/top100", response_model=Top100Response)
+@limiter.limit("60/minute")
 async def top100(
+    request: Request,
     snap_date: Date = Query(
         ...,
         alias="date",
