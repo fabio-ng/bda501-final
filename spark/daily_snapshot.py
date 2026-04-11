@@ -34,16 +34,21 @@ def process_one_date(spark, target_date: str) -> None:
         logger.warning("No data for %s — skipping snapshot", target_date)
         return
 
+    # `from` is always non-null in valid ETH transactions, but guard anyway.
     sent = (
-        raw.groupBy(F.col("`from`").alias("wallet_address"))
+        raw.filter(F.col("`from`").isNotNull())
+        .groupBy(F.col("`from`").alias("wallet_address"))
         .agg(
             F.sum(F.col("value_eth").cast("decimal(38,18)")).alias("sent_eth"),
             F.count("*").alias("sent_count"),
         )
     )
 
+    # `to` is NULL for contract-creation transactions — drop them before groupBy
+    # so the NULL group never reaches the ranking or the Postgres NOT NULL constraint.
     recv = (
-        raw.groupBy(F.col("`to`").alias("wallet_address"))
+        raw.filter(F.col("`to`").isNotNull())
+        .groupBy(F.col("`to`").alias("wallet_address"))
         .agg(
             F.sum(F.col("value_eth").cast("decimal(38,18)")).alias("recv_eth"),
             F.count("*").alias("recv_count"),
@@ -52,6 +57,10 @@ def process_one_date(spark, target_date: str) -> None:
 
     combined = (
         sent.join(recv, on="wallet_address", how="full_outer")
+        # Belt-and-suspenders: drop any residual NULL wallet rows before ranking.
+        # This catches any edge-case nulls in raw data that the filters above
+        # might miss (e.g., malformed rows from the crawler or BigQuery export).
+        .filter(F.col("wallet_address").isNotNull())
         .fillna(0, subset=["sent_eth", "recv_eth", "sent_count", "recv_count"])
         .withColumn("total_volume", F.col("sent_eth") + F.col("recv_eth"))
         .withColumn("total_txns", F.col("sent_count") + F.col("recv_count"))
