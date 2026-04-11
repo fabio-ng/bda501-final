@@ -54,7 +54,8 @@ def slack_alert(context):
 # ── Task functions ────────────────────────────
 def validate_partition(**context):
     """Pre-Spark validation: check raw partition exists and has expected row count."""
-    from plugins.validators import validate_raw_partition
+    # AIRFLOW_HOME/plugins is on sys.path; import top-level module `validators`, not `plugins.validators`.
+    from validators import validate_raw_partition
 
     target_date = context["ds"]
     result = validate_raw_partition(GCS_BUCKET, target_date)

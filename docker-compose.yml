@@ -204,6 +204,8 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-ethuser}:${POSTGRES_PASSWORD:-ethpass}@postgres:5432/airflow
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      # Override .env: Spark/crawler use /app/credentials; Airflow mounts ./credentials here
+      GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/credentials/gcs-key.json
       # Passed to DAG task functions
       GCS_BUCKET: ${GCS_BUCKET:-eth-bigdata-project}
       POSTGRES_HOST: postgres
@@ -240,6 +242,7 @@ services:
       <<: *docker-host-env
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-ethuser}:${POSTGRES_PASSWORD:-ethpass}@postgres:5432/airflow
+      GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/credentials/gcs-key.json
       GCS_BUCKET: ${GCS_BUCKET:-eth-bigdata-project}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
